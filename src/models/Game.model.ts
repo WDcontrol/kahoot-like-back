@@ -1,7 +1,7 @@
 import { prop, modelOptions, getModelForClass } from "@typegoose/typegoose";
 
 @modelOptions({
-  options: { customName: "Game" },
+  options: { customName: "KahootGame" },
 })
 export class Game {
   @prop({ required: true, unique: true })

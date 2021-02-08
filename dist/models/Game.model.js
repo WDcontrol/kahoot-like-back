@@ -35,7 +35,7 @@ __decorate([
 ], Game.prototype, "answerIndex", void 0);
 Game = __decorate([
     typegoose_1.modelOptions({
-        options: { customName: "Game" },
+        options: { customName: "KahootGame" },
     })
 ], Game);
 exports.Game = Game;
