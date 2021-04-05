@@ -12,6 +12,9 @@ var games = new games_1.default();
 var players = new players_1.default();
 // DB
 var MongoClient = require("mongodb").MongoClient;
+// const MongoParams = { useNewUrlParser: true, useUnifiedTopology: true };
+const MongoParams = {};
+// const client = MongoClient(MONGO_URI, MongoParams);
 function Socket(server) {
     const io = IO(server, {
         cors: {
@@ -19,14 +22,15 @@ function Socket(server) {
         },
     });
     io.on("connection", (socket) => {
+        console.log("connected");
         //When host connects for the first time
-        socket.on("host-join", (data) => {
+        socket.on("host-join", (id) => {
             //Check to see if id passed in url corresponds to id of kahoot game in database
-            MongoClient.connect(config_1.MONGO_URI, { useUnifiedTopology: true }, function (err, db) {
+            MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                 if (err)
                     throw err;
                 var dbo = db.db("kahootDB");
-                var query = { id: parseInt(data.id) };
+                var query = { id: parseInt(id) };
                 dbo
                     .collection("kahootGames")
                     .find(query)
@@ -39,7 +43,7 @@ function Socket(server) {
                         games.addGame(gamePin, socket.id, false, {
                             playersAnswered: 0,
                             questionLive: false,
-                            gameid: data.id,
+                            gameid: id,
                             question: 1,
                         }); //Creates a game with pin and host id
                         var game = games.getGame(socket.id); //Gets the game data
@@ -71,7 +75,7 @@ function Socket(server) {
                     }
                 }
                 var gameid = game.gameData["gameid"];
-                MongoClient.connect(config_1.MONGO_URI, function (err, db) {
+                MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                     if (err)
                         throw err;
                     var dbo = db.db("kahootDB");
@@ -104,7 +108,7 @@ function Socket(server) {
                 game.gameData.questionLive = true;
             }
             else {
-                socket.emit("noGameFound"); //No game was found, redirect user
+                socket.emit("noGameFound"); //No game was found, redirect 
             }
         });
         //When player connects for the first time
@@ -113,16 +117,16 @@ function Socket(server) {
             //For each game in the Games class
             for (var i = 0; i < games.games.length; i++) {
                 //If the pin is equal to one of the game's pin
-                if (params.pin == games.games[i].pin) {
+                if (params.code == games.games[i].pin) {
                     console.log("Player connected to game");
                     var hostId = games.games[i].hostId; //Get the id of host of game
-                    players.addPlayer(hostId, socket.id, params.name, {
+                    players.addPlayer(hostId, socket.id, params.nickname, {
                         score: 0,
                         answer: 0,
                     }); //add player to game
-                    socket.join(params.pin); //Player is joining room based on pin
+                    socket.join(params.code); //Player is joining room based on pin
                     var playersInGame = players.getPlayers(hostId); //Getting all players in game
-                    io.to(params.pin).emit("updatePlayerLobby", playersInGame); //Sending host player data to display
+                    io.to(parseInt(params.code)).emit('updatePlayerLobby', playersInGame); //Sending host player data to display
                     gameFound = true; //Game has been found
                 }
             }
@@ -132,14 +136,16 @@ function Socket(server) {
             }
         });
         //When the player connects from game view
-        socket.on("player-join-game", (data) => {
-            var player = players.getPlayer(data.id);
+        socket.on("player-join-game", (id) => {
+            var player = players.getPlayer(id);
+            console.log(player);
             if (player) {
                 var game = games.getGame(player.hostId);
                 socket.join(game.pin);
                 player.playerId = socket.id; //Update player id with socket id
                 var playerData = players.getPlayers(game.hostId);
                 socket.emit("playerGameData", playerData);
+                console.log(playerData);
             }
             else {
                 socket.emit("noGameFound"); //No player found
@@ -192,7 +198,7 @@ function Socket(server) {
                 game.gameData.playersAnswered += 1;
                 var gameQuestion = game.gameData.question;
                 var gameid = game.gameData.gameid;
-                MongoClient.connect(config_1.MONGO_URI, function (err, db) {
+                MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                     if (err)
                         throw err;
                     var dbo = db.db("kahootDB");
@@ -207,6 +213,7 @@ function Socket(server) {
                         //Checks player answer with correct answer
                         if (num == correctAnswer) {
                             player.gameData.score += 100;
+                            // TODO
                             io.to(game.pin).emit("getTime", socket.id);
                             socket.emit("answerResult", true);
                         }
@@ -230,7 +237,11 @@ function Socket(server) {
         });
         socket.on("getScore", function () {
             var player = players.getPlayer(socket.id);
-            socket.emit("newScore", player.gameData.score);
+            if (player) {
+                console.log("player", player);
+                const score = player.gameData.score;
+                socket.emit("newScore", score);
+            }
         });
         socket.on("time", function (data) {
             var time = data.time / 20;
@@ -245,7 +256,7 @@ function Socket(server) {
             var playerData = players.getPlayers(game.hostId);
             var gameQuestion = game.gameData.question;
             var gameid = game.gameData.gameid;
-            MongoClient.connect(config_1.MONGO_URI, function (err, db) {
+            MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                 if (err)
                     throw err;
                 var dbo = db.db("kahootDB");
@@ -275,7 +286,7 @@ function Socket(server) {
             game.gameData.questionLive = true;
             game.gameData.question += 1;
             var gameid = game.gameData.gameid;
-            MongoClient.connect(config_1.MONGO_URI, function (err, db) {
+            MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                 if (err)
                     throw err;
                 var dbo = db.db("kahootDB");
@@ -389,7 +400,7 @@ function Socket(server) {
         });
         //Give user game names data
         socket.on("requestDbNames", function () {
-            MongoClient.connect(config_1.MONGO_URI, function (err, db) {
+            MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                 if (err)
                     throw err;
                 var dbo = db.db("kahootDB");
@@ -405,7 +416,7 @@ function Socket(server) {
             });
         });
         socket.on("newQuiz", function (data) {
-            MongoClient.connect(config_1.MONGO_URI, function (err, db) {
+            MongoClient.connect(config_1.MONGO_URI, MongoParams, function (err, db) {
                 if (err)
                     throw err;
                 var dbo = db.db("kahootDB");
@@ -424,7 +435,6 @@ function Socket(server) {
                         data.id = result[num - 1].id + 1;
                     }
                     var game = data;
-                    // console.log(game)
                     dbo
                         .collection("kahootGames")
                         .insertOne(game, function (err, res) {
